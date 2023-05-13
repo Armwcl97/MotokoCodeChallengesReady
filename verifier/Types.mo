@@ -14,6 +14,7 @@ module {
   };
 
   public type TestResult = Result.Result<(), TestError>;
+  
   public type TestError = {
     #UnexpectedValue : Text;
     #UnexpectedError : Text;
