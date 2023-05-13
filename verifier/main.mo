@@ -12,7 +12,7 @@ import Debug "mo:base/Debug";
 import Buffer "mo:base/Buffer";
 import Iter "mo:base/Iter";
 import IC "Ic";
-import HTTP "Http";
+
 import Type "Types";
 import Calculator "Calculator";
 
@@ -106,65 +106,82 @@ actor class Verifier() {
   // as actor "aaaa-aa" (aka the IC itself, exposed as an interface) does not exist locally
 
   private func _parseControllers(errorMessage : Text) : [Principal] {
-      let lines = Iter.toArray(Text.split(errorMessage, #text("\n")));
-      let words = Iter.toArray(Text.split(lines[1], #text(" ")));
-      var i = 2;
-      let controllers = Buffer.Buffer<Principal>(0);
-      while (i < words.size()) {
-        controllers.add(Principal.fromText(words[i]));
-        i += 1;
-      };
-      Buffer.toArray<Principal>(controllers);
+    let lines = Iter.toArray(Text.split(errorMessage, #text("\n")));
+    let words = Iter.toArray(Text.split(lines[1], #text(" ")));
+    var i = 2;
+    let controllers = Buffer.Buffer<Principal>(0);
+    while (i < words.size()) {
+      controllers.add(Principal.fromText(words[i]));
+      i += 1;
     };
+    Buffer.toArray<Principal>(controllers);
+  };
 
-    public type CanisterId = IC.CanisterId;    
-    public type CanisterSettings = IC.CanisterSettings;
-    public type CanisterManager = IC.ManagementCanisterInterface;
+  public type CanisterId = IC.CanisterId;
+  public type CanisterSettings = IC.CanisterSettings;
+  public type CanisterManager = IC.ManagementCanisterInterface;
 
   public func verifyOwnership(canisterId : Principal, p : Principal) : async Bool {
-    let manager : CanisterManager = actor("aaaaa-aa");
-     try{
-        let temp = await manager.canister_status({canister_id = canisterId});
-        let controllers = temp.settings.controllers; 
-        return true;
-     }catch(error){
+    let manager : CanisterManager = actor ("aaaaa-aa");
+    try {
+      let temp = await manager.canister_status({ canister_id = canisterId });
+      let controllers = temp.settings.controllers;
+      return true;
+    } catch (error) {
       let messageError = Error.message(error);
       let controllers = _parseControllers(messageError);
       // let controllersInText = Array.map<Principal , Text>(controllers, func x = Principal.toText( x ));
-      switch(Array.find<Principal>(controllers, func x = p == x)){
-        case(null){
+      switch (Array.find<Principal>(controllers, func x = p == x)) {
+        case (null) {
           return false;
         };
-        case(?_){
+        case (?_) {
           return true;
         };
       };
-     };
+    };
   };
   // STEP 3 - END
 
   // STEP 4 - BEGIN
   public shared ({ caller }) func verifyWork(canisterId : Principal, p : Principal) : async Result.Result<Bool, Text> {
-    
+
     let testMo = await test(canisterId : Principal);
     let verifyOwner = await verifyOwnership(canisterId : Principal, p : Principal);
-    
-    switch(verifyOwner){
-      case(false){
-        return #err"You aren't the real owner";
+
+    switch (verifyOwner) {
+      case (false) {
+        return #err "You aren't the real owner";
       };
-      case(true){
-        switch(testMo){
-          case(#err(#UnexpectedError(text))){
+      case (true) {
+        switch (testMo) {
+          case (#err(#UnexpectedError(text))) {
             return #err("Test didnt go as expected.");
           };
-          case(#err(#UnexpectedValue(text))){
+          case (#err(#UnexpectedValue(text))) {
             return #err("Test didnt go as expected.");
           };
-          case(#ok){
+          case (#ok) {
+
+            let studentsProfileGet = studentsProfileStore.get(p);
+
+            switch (studentsProfileGet) {
+              case (null) {
+                return #err("Test didnt go as expected.");
+              };
+              case (?ok) {
+                let graduateUser : StudentProfile = {
+                  name = ok.name;
+                  team = ok.team;
+                  graduate = true;
+                };
+
+                studentsProfileStore.put(p, graduateUser);
+              };
+            };
             return #ok(true);
           };
-        }
+        };
       };
     };
   };
